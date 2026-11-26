@@ -1,0 +1,6 @@
+{
+  "name": "Gen1Resume",
+  "description": "AI-powered, fact-grounded resume engineering platform with two-pass factual verification and strict ATS compatibility.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

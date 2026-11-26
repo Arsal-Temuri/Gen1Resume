@@ -1,0 +1,1578 @@
+# BUILD GEN1RESUME — AI-POWERED, FACT-GROUNDED RESUME ENGINEERING PLATFORM
+
+You are a senior full-stack engineer, AI systems architect, product designer, and application security engineer.
+
+Your task is to design and build **Gen1Resume**, a production-quality, cloud-powered AI web application that transforms a user's existing career information into highly targeted, ATS-friendly resumes for specific job opportunities.
+
+This is not a generic AI resume writer.
+
+Gen1Resume is a **fact-grounded resume engineering platform**. Its defining capability is tailoring professional experience to job descriptions while maintaining strict factual integrity through an independent, two-pass AI verification pipeline.
+
+The application must prioritize:
+
+1. Factual accuracy over persuasive writing.
+2. Traceability over unverifiable AI-generated claims.
+3. User approval over autonomous AI assumptions.
+4. ATS compatibility over decorative resume design.
+5. Reliability and data integrity over unnecessary complexity.
+6. Exceptional usability and visual polish.
+
+Build the actual working application, not a static mockup or a collection of disconnected UI screens.
+
+Every major button, interaction, workflow, and feature described below must be implemented and functional.
+
+---
+
+# PART 1 — TECHNICAL ARCHITECTURE AND ENGINEERING REQUIREMENTS
+
+## 1.1 Technology Stack
+
+Use the following technologies:
+
+- Frontend: React
+- Language: TypeScript with strict typing enabled
+- Build tool: Vite
+- Styling: Tailwind CSS
+- Icons: lucide-react
+- AI SDK: @google/genai
+- AI model: gemini-2.5-flash
+- Data persistence: localStorage
+- Export: Native browser printing and Blob downloads
+- State management: React Context or a clean, lightweight custom state architecture.
+
+Use modular, reusable components.
+
+Do not place the entire application in one enormous component.
+
+Recommended project structure:
+
+src/
+  components/
+    layout/
+    navigation/
+    profile/
+    tailoring/
+    auditor/
+    resume/
+    history/
+    shared/
+
+  pages/
+    Dashboard.tsx
+    MasterProfile.tsx
+    TailoringStudio.tsx
+    VersionHistory.tsx
+
+  services/
+    geminiService.ts
+    extractionService.ts
+    tailoringService.ts
+    auditService.ts
+    scoringService.ts
+    exportService.ts
+    storageService.ts
+
+  types/
+    profile.ts
+    resume.ts
+    audit.ts
+    history.ts
+    gemini.ts
+
+  hooks/
+    useMasterProfile.ts
+    useVersionHistory.ts
+    useTheme.ts
+
+  utils/
+    factIds.ts
+    validators.ts
+    resumeFormatter.ts
+    textUtils.ts
+
+  styles/
+    globals.css
+    print.css
+
+  App.tsx
+  main.tsx
+
+You may adjust the structure when necessary, but maintain clear separation of concerns.
+
+## 1.2 Strict Engineering Constraints
+
+These requirements are mandatory.
+
+**AI integration:**
+
+- Use @google/genai.
+- Use gemini-2.5-flash.
+- Every AI operation must use Structured Outputs.
+- Use responseMimeType: "application/json".
+- Use responseSchema defined with the SDK's Type schema.
+- Define explicit TypeScript interfaces for all AI request and response objects.
+- Validate every AI response before passing it into application state.
+- Never assume that generated JSON is valid simply because the model was instructed to produce JSON.
+
+**PDF ingestion:**
+
+- Do NOT install pdfjs-dist.
+- Do NOT install mammoth.
+- Do NOT use Node.js Buffer.
+- Do NOT introduce Node polyfills.
+- Do NOT implement a fragile client-side PDF parser.
+- Read uploaded PDF files using browser FileReader or an equivalent browser-native API.
+- Convert the PDF to base64 and send it directly to Gemini as inlineData with mimeType: "application/pdf".
+- Extract structured profile data from the document.
+- Also support direct resume-text input.
+
+**PDF export:**
+
+- Do NOT install jsPDF, Puppeteer, or other PDF-generation dependencies.
+- Implement a dedicated print stylesheet.
+- Use window.print().
+- Hide all application navigation, buttons, backgrounds, and interface elements during printing.
+- Print only the clean ATS resume.
+
+**Word export:**
+
+- Do NOT install docx or other Node-dependent export libraries.
+- Generate a browser-compatible .doc document using Blob and application/msword.
+- Use semantic, Word-compatible HTML.
+- Preserve clean headings, bullet points, spacing, and typography.
+
+**Persistence:**
+
+- Use localStorage for the Master Profile, settings, and Version History.
+- Use structured JSON objects.
+- Implement safe JSON parsing and schema validation.
+- Handle missing, corrupted, or outdated stored data gracefully.
+- Maintain a versioned storage format.
+- Never crash the application because localStorage contains malformed data.
+
+**Security:**
+
+- Never hardcode a Google API key into source code.
+- Never commit API keys.
+- Use the AI Studio-provided secure secrets mechanism or a server-side API endpoint that reads the key from environment variables.
+- Never expose secrets in frontend bundles, logs, or error messages.
+- Do not send unnecessary personal information to Gemini.
+- Clearly communicate that resume information is processed by an external AI service.
+
+If the selected Google AI Studio deployment environment cannot securely protect the API key in a browser-only architecture, implement the thinnest supported server-side proxy rather than exposing credentials.
+
+Do not silently replace real AI functionality with mock responses.
+
+---
+
+# PART 2 — PRODUCT STRUCTURE AND NAVIGATION
+
+Create a premium, responsive web application with four primary navigation sections:
+
+1. Dashboard
+2. Master Profile
+3. Tailoring Studio
+4. Version History
+
+Use a minimal top navigation bar.
+
+The application should feel like a professional productivity tool rather than a generic resume builder.
+
+Include:
+
+- Application logo and Gen1Resume branding.
+- Clear page titles.
+- Current profile status.
+- Theme toggle.
+- Context-sensitive actions.
+- Subtle toast notifications.
+- Consistent loading indicators.
+- Accessible modal dialogs.
+- Responsive mobile navigation.
+
+The default theme must be light mode.
+
+Persist the user's theme preference.
+
+---
+
+# PART 3 — DASHBOARD
+
+Build a functional dashboard that acts as the application's central workspace.
+
+Include a welcoming header:
+
+"Your experience. Precisely positioned."
+
+Supporting text:
+
+"Build targeted resumes from verified career facts. Every claim has a source."
+
+Display four compact overview cards:
+
+1. Master Profile
+   - Number of approved facts.
+   - Number of pending facts.
+   - Profile completion status.
+
+2. Resumes Created
+   - Total saved tailoring versions.
+
+3. Average Verification
+   - Average verification score across saved versions.
+
+4. Latest Activity
+   - Most recent tailoring date.
+
+Include a prominent primary action:
+
+"Create Tailored Resume"
+
+Include a recent activity section showing:
+
+- Target role.
+- Company.
+- Date created.
+- Match score.
+- Verification score.
+- Quick action to reopen.
+
+Include a first-time onboarding state when no profile exists.
+
+Never display fabricated dashboard statistics.
+
+---
+
+# PART 4 — MASTER PROFILE VAULT
+
+This is the most important foundation of the entire application.
+
+The Master Profile is the user's single source of professional truth.
+
+The AI must never use unapproved information as factual evidence.
+
+## 4.1 Profile Intake
+
+Provide three intake options.
+
+**Option A — Upload PDF**
+
+- Accept .pdf files.
+- Display filename and file size.
+- Show upload and processing states.
+- Convert PDF to base64 using browser-native APIs.
+- Send the document to Gemini using inlineData.
+- Extract structured professional information.
+- Show extracted results for review.
+- Do not automatically approve extracted facts.
+
+**Option B — Paste Resume Text**
+
+Provide a large textarea.
+
+Allow users to paste an existing resume.
+
+Submit the text to Gemini for structured extraction.
+
+**Option C — Sample Profile**
+
+Create a one-click sample profile:
+
+"Load Sample CS Graduate Profile"
+
+Include realistic but explicitly fictional sample information:
+
+- Computer Science education.
+- Two software engineering internships.
+- Backend development experience.
+- Python and TypeScript.
+- React and Node.js.
+- SQL and database experience.
+- An NLP project.
+- An AI/ML project.
+- Git, Docker, and cloud exposure.
+- Realistic, internally consistent metrics.
+
+Clearly label this as sample data.
+
+Do not represent fictional sample data as real user experience.
+
+## 4.2 Structured Profile Categories
+
+Organize extracted information into five sections.
+
+### A. Header and Contact
+
+Fields:
+
+- Full name.
+- Professional title.
+- Email.
+- Phone.
+- Location.
+- LinkedIn URL.
+- GitHub URL.
+- Portfolio URL.
+
+Contact details should be editable but should not be invented.
+
+### B. Education
+
+Fields:
+
+- Institution.
+- Degree.
+- Field of study.
+- Start date.
+- Graduation date.
+- GPA, if supplied.
+- Relevant coursework.
+- Academic achievements.
+
+### C. Experience
+
+Each experience entry should contain:
+
+- Company.
+- Job title.
+- Employment type.
+- Location.
+- Start date.
+- End date.
+- Responsibilities.
+- Achievements.
+- Individual bullet points.
+
+### D. Projects
+
+Each project should contain:
+
+- Project name.
+- Description.
+- Technologies.
+- Responsibilities.
+- Achievements.
+- Individual bullet points.
+- Project URL, if available.
+
+### E. Technical Skills
+
+Organize skills into categories:
+
+- Programming Languages.
+- Frameworks and Libraries.
+- Databases.
+- Cloud and DevOps.
+- AI and Machine Learning.
+- Developer Tools.
+- Other Technical Skills.
+
+## 4.3 Fact-Level Indexing System
+
+Every individual factual statement must receive a unique, deterministic fact_id.
+
+Examples:
+
+EXP-1-B1
+EXP-1-B2
+EXP-2-B1
+
+PRJ-1-B1
+PRJ-2-B1
+
+EDU-1-F1
+EDU-1-F2
+
+SKL-01
+SKL-02
+SKL-03
+
+HDR-01
+HDR-02
+
+Rules:
+
+- IDs must be generated by application code, not Gemini.
+- IDs must remain stable when facts are edited.
+- IDs must not change when facts are reordered.
+- Deleted IDs must not be silently reassigned to different facts.
+- Newly added facts receive new IDs.
+- Every bullet point must have its own ID.
+- Every independently usable skill must have its own ID.
+- Every role, qualification, achievement, and relevant structured field must be individually traceable.
+
+Use a centralized fact ID generator.
+
+Store facts as structured records rather than plain strings.
+
+Suggested fact structure:
+
+{
+  "fact_id": "EXP-1-B1",
+  "section": "experience",
+  "parent_id": "EXP-1",
+  "content": "Developed REST APIs using Python and FastAPI.",
+  "approved": true,
+  "created_at": "...",
+  "updated_at": "...",
+  "source": "user_supplied_resume"
+}
+
+Use appropriate additional metadata when needed.
+
+## 4.4 Human Approval Interface
+
+Render each fact in an editable card.
+
+Every card must include:
+
+- Fact ID.
+- Editable factual content.
+- Approval status.
+- Edit control.
+- Delete control.
+- Section information.
+
+Approval states:
+
+- Pending Review.
+- Approved.
+- Rejected.
+
+Only Approved facts may enter the AI tailoring pipeline.
+
+Rejected and pending facts must never be used as supporting evidence.
+
+Provide:
+
+- Approve individual fact.
+- Approve all reviewed facts.
+- Edit fact.
+- Add fact manually.
+- Delete fact.
+- Search facts.
+- Filter by approval status.
+- Filter by category.
+
+When a user edits an approved fact, require it to be reviewed and approved again.
+
+This prevents an edited fact from remaining trusted without human confirmation.
+
+Display a clear profile readiness indicator.
+
+---
+
+# PART 5 — TAILORING STUDIO
+
+This is the core product experience.
+
+Build a sophisticated split-pane workbench.
+
+Desktop layout:
+
+Left panel: Job Description and Gap Analysis.
+
+Right panel: Resume Preview and Fact Auditor.
+
+Mobile layout:
+
+Use a stacked layout with accessible panel switching.
+
+## 5.1 Job Description Input
+
+Provide:
+
+- Job Description textarea.
+- Target Job Title.
+- Company Name.
+- Optional Focus Directive.
+
+Example focus directive:
+
+"Emphasize my Python backend experience, API development, and NLP project. Prioritize relevant technical achievements."
+
+Add a clear action button:
+
+"Tailor & Verify Resume"
+
+Disable this button when:
+
+- No Master Profile exists.
+- No approved facts exist.
+- The job description is empty.
+- Another generation operation is already running.
+
+Validate input lengths and provide useful feedback.
+
+## 5.2 Tailoring Loading Experience
+
+Use clear, meaningful progress states.
+
+Stage 1:
+
+"Analyzing job requirements..."
+
+Stage 2:
+
+"Selecting approved career evidence..."
+
+Stage 3:
+
+"Generating targeted resume..."
+
+Stage 4:
+
+"Independently auditing factual claims..."
+
+Stage 5:
+
+"Calculating match and verification scores..."
+
+Show the current stage and an animated progress indicator.
+
+Do not pretend to know exact percentage completion when the AI operation does not provide measurable progress.
+
+Preserve the previous generated resume if a new generation fails.
+
+## 5.3 Job Description Gap Analysis
+
+Extract relevant requirements from the JD.
+
+Organize them into:
+
+- Required Skills.
+- Preferred Skills.
+- Technical Tools.
+- Frameworks.
+- Experience Requirements.
+- Responsibilities.
+- Domain Knowledge.
+
+Compare these requirements against the approved Master Profile.
+
+Display:
+
+**Matched Requirements**
+
+Skills and qualifications supported by approved facts.
+
+**Missing Requirements**
+
+Skills and qualifications not found in the approved profile.
+
+**Partially Matched Requirements**
+
+Related experience exists, but the exact requested qualification is not fully supported.
+
+For every matched requirement, show supporting fact IDs.
+
+Never mark a skill as matched merely because it appears in an unapproved fact.
+
+Never invent missing qualifications.
+
+## 5.4 Deterministic Match Score
+
+Implement a transparent scoring service.
+
+Do not allow Gemini to arbitrarily invent an overall match percentage.
+
+Calculate the score from weighted job requirements.
+
+Recommended initial weights:
+
+- Required technical skills: 40%.
+- Relevant responsibilities: 25%.
+- Experience alignment: 20%.
+- Preferred skills: 10%.
+- Education and domain alignment: 5%.
+
+Each requirement must have:
+
+- Requirement name.
+- Requirement category.
+- Importance.
+- Evidence status.
+- Supporting fact IDs.
+- Weight.
+
+Calculate the score using the evidence coverage of weighted requirements.
+
+Display the final percentage with a breakdown.
+
+Important:
+
+- Missing requirements must contribute zero.
+- Partial matches must receive a lower score than fully supported matches.
+- Do not award points based solely on keyword similarity.
+- Avoid double-counting duplicate requirements.
+- Clearly distinguish profile compatibility from ATS compatibility.
+
+Label this score:
+
+"Profile Match Score"
+
+It represents evidence-based alignment, not a guaranteed ATS ranking or hiring probability.
+
+---
+
+# PART 6 — TWO-PASS ANTI-HALLUCINATION ENGINE
+
+Implement this pipeline in:
+
+src/services/geminiService.ts
+
+Separate extraction, generation, auditing, and validation into modular functions.
+
+All AI calls must use Gemini Structured Outputs.
+
+Use:
+
+responseMimeType: "application/json"
+
+responseSchema: Type schema defined using the @google/genai SDK.
+
+Use explicit, strongly typed schemas.
+
+Never rely on free-form JSON parsing without validation.
+
+## PASS 1 — GROUNDED RESUME GENERATOR
+
+Temperature: 0.1.
+
+Inputs:
+
+1. Approved Master Profile JSON.
+2. Job Description.
+3. Optional Focus Directive.
+4. Target Role.
+5. Company Name.
+
+System instructions:
+
+"You are a professional resume strategist.
+
+Your task is to produce a highly relevant, concise, ATS-friendly resume using ONLY the supplied approved career facts.
+
+You are not permitted to create, assume, infer, exaggerate, or fabricate professional experience.
+
+You may:
+
+- Reorder experience.
+- Select relevant projects.
+- Improve sentence structure.
+- Replace weak wording with stronger accurate wording.
+- Align terminology with the job description when semantically equivalent.
+- Improve clarity and readability.
+- Prioritize relevant achievements.
+- Remove irrelevant information.
+
+You may NOT:
+
+- Invent tools, programming languages, or frameworks.
+- Add unverified responsibilities.
+- Create numerical metrics.
+- Inflate existing numerical achievements.
+- Invent leadership responsibilities.
+- Invent employment dates.
+- Invent project outcomes.
+- Upgrade skill proficiency.
+- Convert exposure into professional expertise.
+- Claim experience with technologies absent from approved evidence.
+
+Every generated factual bullet MUST contain source_fact_ids.
+
+Every cited fact ID must exist in the supplied approved profile.
+
+If a statement cannot be supported by approved evidence, do not generate it.
+
+When evidence is insufficient, omit the claim rather than guessing.
+
+Accuracy always takes priority over keyword optimization."
+
+### Pass 1 Output Schema
+
+Return a structured JSON object containing:
+
+{
+  "resume": {
+    "header": {},
+    "professional_summary": "...",
+    "skills": [],
+    "experience": [],
+    "projects": [],
+    "education": []
+  },
+  "requirements_analysis": {
+    "matched": [],
+    "partially_matched": [],
+    "missing": []
+  },
+  "generation_metadata": {
+    "target_role": "...",
+    "company_name": "...",
+    "focus_directive": "..."
+  }
+}
+
+Each generated bullet must contain:
+
+{
+  "bullet_id": "BUL-001",
+  "text": "Developed REST APIs using Python and FastAPI.",
+  "source_fact_ids": ["EXP-1-B1"],
+  "section": "experience"
+}
+
+Each experience and project must also preserve the original role or project identity through appropriate source references.
+
+Skills included in the final resume must reference approved skill facts.
+
+The professional summary must also be supported by source facts. Either provide fact-level citations for each factual sentence or structure the summary as individually traceable statements.
+
+Do not create an unsupported summary.
+
+## PASS 2 — INDEPENDENT FACTUAL AUDITOR
+
+Temperature: 0.0.
+
+This is a separate Gemini request.
+
+Do not simply trust Pass 1.
+
+Inputs:
+
+1. The complete generated resume.
+2. The original approved Master Profile.
+3. The cited source fact IDs.
+
+System instructions:
+
+"You are an independent factual verification engine.
+
+Your only responsibility is to determine whether every generated resume claim is factually supported by the approved source material.
+
+Do not optimize the resume.
+
+Do not rewrite claims to make them appear valid.
+
+Do not trust the previous model's reasoning.
+
+Independently compare every factual statement against its exact cited approved source facts.
+
+Check:
+
+- Skills.
+- Technologies.
+- Frameworks.
+- Metrics.
+- Dates.
+- Responsibilities.
+- Job titles.
+- Project outcomes.
+- Leadership claims.
+- Scope of work.
+- Experience duration.
+- Qualifications.
+
+A statement must not be marked VERIFIED merely because its general meaning sounds plausible.
+
+Every material factual element must be supported.
+
+VERIFIED:
+The wording and every factual detail are directly supported by the cited facts.
+
+PARAPHRASED:
+The statement changes wording or framing but preserves the exact factual meaning and does not introduce additional claims.
+
+UNSUPPORTED:
+The statement contains any unsupported tool, responsibility, achievement, metric, qualification, inflated outcome, misleading implication, or unsupported factual detail.
+
+Also mark a claim UNSUPPORTED when:
+
+- A cited fact ID does not exist.
+- A cited fact is not approved.
+- A claim has no supporting fact IDs.
+- The cited evidence does not actually support the statement.
+
+Be conservative.
+
+When uncertain, choose UNSUPPORTED.
+
+Provide a concise, specific explanation of every discrepancy."
+
+### Pass 2 Output Schema
+
+{
+  "audit_results": [
+    {
+      "bullet_id": "BUL-001",
+      "status": "VERIFIED",
+      "source_fact_ids": ["EXP-1-B1"],
+      "auditor_note": "All technical details are directly supported by the cited source fact."
+    }
+  ],
+  "overall_audit_summary": {
+    "total_claims": 10,
+    "verified_count": 6,
+    "paraphrased_count": 3,
+    "unsupported_count": 1
+  }
+}
+
+Every generated bullet must receive exactly one audit result.
+
+The application must independently validate:
+
+- Every generated bullet has a unique bullet ID.
+- Every generated bullet has at least one source fact ID.
+- Every source fact ID exists.
+- Every source fact is approved.
+- Every generated bullet has exactly one audit result.
+- No unexpected or duplicate audit entries exist.
+
+Do not accept the auditor's unsupported or inconsistent claims blindly.
+
+Use application-side validation in addition to the AI auditor.
+
+If an unsupported claim is detected, keep it visibly flagged.
+
+Never silently convert UNSUPPORTED into VERIFIED.
+
+Never export unsupported claims as though they were verified.
+
+---
+
+# PART 7 — FACT AUDITOR INTERFACE
+
+The right-hand resume panel needs two modes.
+
+A segmented control:
+
+1. Audit Mode.
+2. Clean ATS Preview.
+
+## 7.1 Audit Mode
+
+Render the generated resume in an editable, interactive format.
+
+Every bullet must display:
+
+- Bullet text.
+- Verification status.
+- Source fact IDs.
+- Clickable audit details.
+
+Use these semantic statuses:
+
+VERIFIED — Emerald.
+
+PARAPHRASED — Amber.
+
+UNSUPPORTED — Crimson.
+
+When a user clicks a bullet, open an inline Lineage Inspector.
+
+The inspector must display:
+
+**1. Tailored Claim**
+
+The exact generated bullet.
+
+**2. Original Approved Evidence**
+
+Retrieve the original facts using source_fact_ids.
+
+Display the exact original source wording.
+
+**3. Auditor Assessment**
+
+Display the verification status and explanation.
+
+**4. Available Actions**
+
+- Revert to Original.
+- Edit Text.
+- Remove Bullet.
+
+Revert to Original must restore the exact source wording and preserve its fact references.
+
+Edit Text must open an inline editor.
+
+After manual editing, the application must not automatically retain VERIFIED status.
+
+Mark the modified claim as requiring re-audit.
+
+Manual changes must trigger the factual auditor again before the claim can be treated as verified.
+
+Remove Bullet must remove the claim from the active resume.
+
+Show a confirmation for destructive actions when appropriate.
+
+## 7.2 Clean ATS Preview
+
+Render a polished, professional, single-column resume.
+
+Remove:
+
+- Fact ID badges.
+- Verification badges.
+- Auditor notes.
+- Interface controls.
+- Colored semantic accents.
+- Decorative UI elements.
+
+Preserve:
+
+- Professional name.
+- Contact information.
+- Professional summary.
+- Technical skills.
+- Experience.
+- Projects.
+- Education.
+
+The document must use:
+
+- Clear hierarchy.
+- Consistent spacing.
+- Professional typography.
+- Standard section headings.
+- Simple bullet points.
+- Readable dates.
+- Minimal formatting.
+
+Use selectable text, not an image of the resume.
+
+The preview should closely resemble the final printed document.
+
+---
+
+# PART 8 — RESUME EDITING AND INTEGRITY RULES
+
+Users must be able to make final adjustments.
+
+Support:
+
+- Editing the professional summary.
+- Editing bullet text.
+- Removing bullets.
+- Reordering bullets.
+- Reordering experience and project entries.
+- Adding or removing sections.
+- Adjusting skill order.
+
+However, editing must never bypass factual verification.
+
+Implement claim-level audit invalidation.
+
+When a factual statement changes:
+
+1. Mark the affected claim as NEEDS_REVIEW.
+2. Preserve its previous audit result in the audit history.
+3. Re-run Pass 2 using the modified resume.
+4. Update its status only after validation.
+
+A user may override an unsupported claim for personal use, but it must remain visibly labeled as a user override and must not be presented as AI-verified.
+
+Provide a final export safety check.
+
+Default export behavior:
+
+- VERIFIED: Allowed.
+- PARAPHRASED: Allowed, with clear user awareness.
+- UNSUPPORTED: Blocked.
+- NEEDS_REVIEW: Blocked.
+- Missing source references: Blocked.
+
+Do not allow unsupported claims to silently enter the clean ATS export.
+
+---
+
+# PART 9 — VERSION HISTORY
+
+Every successful tailoring run must be saved.
+
+Store the complete snapshot, including:
+
+- Version ID.
+- Target role.
+- Company name.
+- Job description.
+- Focus directive.
+- Creation timestamp.
+- Match score.
+- Verification score.
+- Complete generated resume.
+- Original source fact IDs.
+- Audit results.
+- Requirement breakdown.
+- Relevant Master Profile snapshot.
+- User edits.
+- Audit status.
+
+Display versions in a clean chronological list.
+
+Each version should provide:
+
+- Open.
+- Duplicate.
+- Delete.
+- View details.
+
+Opening a historical version must restore its exact saved snapshot.
+
+Do not regenerate it automatically.
+
+Do not silently replace historical facts with newer Master Profile data.
+
+A duplicated version should create a new editable working copy.
+
+Deleting a version must require confirmation.
+
+Use stable version IDs and timestamps.
+
+Persist all data in localStorage.
+
+Implement automatic storage validation and recovery.
+
+If stored JSON is corrupted:
+
+- Do not crash.
+- Attempt recovery of valid records.
+- Preserve recoverable data.
+- Display a clear warning.
+- Offer a way to reset corrupted application data.
+
+Provide a way to export and import a complete application backup as JSON.
+
+This is important because localStorage is browser-specific and can be cleared by the user.
+
+---
+
+# PART 10 — ATS EXPORT SYSTEM
+
+Place an export toolbar in the Tailoring Studio header.
+
+Three primary actions:
+
+1. Export PDF.
+2. Export Word (.doc).
+3. Copy Plain Text.
+
+## 10.1 PDF Export
+
+Use window.print().
+
+Implement a dedicated print.css stylesheet.
+
+During printing:
+
+- Hide navigation.
+- Hide the sidebar.
+- Hide the editor.
+- Hide verification badges.
+- Hide buttons.
+- Hide modals.
+- Hide backgrounds.
+- Hide decorative borders.
+- Hide all application chrome.
+
+Display only the clean resume document.
+
+Print rules:
+
+- White background.
+- Black text.
+- Single-column layout.
+- Consistent margins.
+- No horizontal scrolling.
+- No clipped text.
+- Professional font sizing.
+- Avoid splitting a bullet across pages where practical.
+- Keep headings with their following content.
+- Preserve selectable text.
+
+Use @page to define appropriate page margins.
+
+Before opening print, run the export safety check.
+
+## 10.2 Word Export
+
+Generate a clean HTML-based .doc file using:
+
+new Blob([...], { type: "application/msword" })
+
+Use semantic HTML.
+
+Support:
+
+- Headings.
+- Paragraphs.
+- Lists.
+- Bold text.
+- Contact information.
+- Section spacing.
+
+Use a single-column ATS-friendly format.
+
+Do not export audit badges or internal fact IDs.
+
+Sanitize generated HTML.
+
+Generate a meaningful filename, such as:
+
+FirstName_LastName_Software_Engineer_Resume.doc
+
+## 10.3 Copy Plain Text
+
+Generate a plain-text version of the clean resume.
+
+Use navigator.clipboard.writeText() where available.
+
+Provide a fallback when clipboard permissions are unavailable.
+
+Show toast notifications:
+
+"Resume copied successfully."
+
+Do not copy audit metadata or source IDs.
+
+---
+
+# PART 11 — DESIGN SYSTEM
+
+Create an ultra-clean editorial interface inspired by Linear, Notion, and Vercel.
+
+The visual language should communicate trust, precision, intelligence, and professionalism.
+
+Avoid generic AI-dashboard aesthetics.
+
+Avoid excessive gradients, oversized illustrations, unnecessary animations, and colorful cards.
+
+## 11.1 Color Palette
+
+LIGHT MODE — DEFAULT
+
+- Main background: #FFFFFF
+- Secondary surface: #FAFAFA
+- Primary text: #09090B
+- Secondary text: #52525B
+- Muted text: #71717A
+- Border: #E4E4E7
+- Primary button: #09090B
+- Primary button text: #FFFFFF
+
+DARK MODE
+
+- Main background: #09090B
+- Secondary surface: #121214
+- Elevated surface: #18181B
+- Primary text: #FAFAFA
+- Secondary text: #A1A1AA
+- Border: #27272A
+
+SEMANTIC COLORS — RESERVED FOR FACTUAL STATUS
+
+VERIFIED / MATCHED:
+
+- Text: #059669
+- Background: #ECFDF5
+- Border: #A7F3D0
+
+PARAPHRASED:
+
+- Text: #D97706
+- Background: #FFFBEB
+- Border: #FDE68A
+
+UNSUPPORTED / MISSING:
+
+- Text: #DC2626
+- Background: #FEF2F2
+- Border: #FECACA
+
+Ensure semantic colors remain readable in dark mode.
+
+Do not use these colors for ordinary decoration.
+
+## 11.2 Typography
+
+Use:
+
+- Inter for interface typography.
+- JetBrains Mono for fact IDs, scores, and technical metadata.
+
+Typography should be restrained and highly readable.
+
+Use tabular numerals for percentages and numerical metrics.
+
+## 11.3 Components
+
+Create a consistent component library:
+
+- Button.
+- IconButton.
+- Card.
+- Badge.
+- StatusPill.
+- Input.
+- Textarea.
+- Modal.
+- Tooltip.
+- Toast.
+- ProgressIndicator.
+- EmptyState.
+- ConfirmDialog.
+- Tabs.
+- SegmentedControl.
+- FactCard.
+- ResumeSection.
+- ResumeBullet.
+- AuditInspector.
+- ScoreCard.
+
+Use lucide-react icons.
+
+Use subtle transitions.
+
+Respect prefers-reduced-motion.
+
+Use consistent border radii, spacing, and sizing.
+
+The application should feel exceptionally polished at both desktop and mobile sizes.
+
+---
+
+# PART 12 — DATA MODEL AND STATE MANAGEMENT
+
+Create a centralized, strongly typed data model.
+
+Core entities:
+
+MasterProfile
+ProfileSection
+Experience
+Project
+Education
+Skill
+CareerFact
+JobDescription
+JobRequirement
+GeneratedResume
+ResumeSection
+ResumeBullet
+AuditResult
+VersionSnapshot
+ApplicationSettings
+
+Every object must have an explicit TypeScript interface.
+
+Avoid using any.
+
+Use discriminated unions where appropriate.
+
+Recommended verification states:
+
+type VerificationStatus =
+  | "VERIFIED"
+  | "PARAPHRASED"
+  | "UNSUPPORTED"
+  | "NEEDS_REVIEW";
+
+Recommended approval states:
+
+type ApprovalStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED";
+
+Implement a clean state flow:
+
+User Input
+    ↓
+Profile Extraction
+    ↓
+Fact Indexing
+    ↓
+Human Approval
+    ↓
+Approved Profile
+    ↓
+JD Analysis
+    ↓
+Grounded Resume Generation
+    ↓
+Independent Factual Audit
+    ↓
+Application-Side Validation
+    ↓
+Editable Resume
+    ↓
+Final Audit
+    ↓
+Export and Version Snapshot
+
+No stage should bypass its required predecessor.
+
+Store original source facts separately from generated resume content.
+
+Never modify the Master Profile when generating a resume.
+
+Never mutate a saved version when the active resume is edited.
+
+Use immutable snapshots for historical records.
+
+---
+
+# PART 13 — ERROR HANDLING AND RELIABILITY
+
+Implement proper handling for:
+
+- Gemini API errors.
+- Network failures.
+- API rate limits.
+- Invalid API credentials.
+- Empty AI responses.
+- Malformed structured output.
+- Invalid source fact IDs.
+- Missing approval status.
+- PDF reading errors.
+- Oversized uploads.
+- Corrupted localStorage.
+- Clipboard failures.
+- Export failures.
+- Interrupted generation.
+- Duplicate requests.
+
+For retryable AI failures:
+
+- Retry a limited number of times.
+- Use controlled backoff.
+- Do not create duplicate history records.
+- Do not overwrite a previously successful result.
+- Preserve user input.
+
+Never show raw API stack traces to users.
+
+Provide concise, actionable error messages.
+
+Include a cancel mechanism where practical.
+
+If generation is interrupted, allow the user to retry without losing their JD or focus directive.
+
+---
+
+# PART 14 — ACCESSIBILITY AND RESPONSIVE DESIGN
+
+The application must support:
+
+- Desktop.
+- Tablet.
+- Mobile.
+
+Accessibility requirements:
+
+- Semantic HTML.
+- Keyboard navigation.
+- Visible focus indicators.
+- Accessible form labels.
+- Appropriate ARIA attributes.
+- Sufficient contrast.
+- Screen-reader-friendly status indicators.
+- Keyboard-accessible modals.
+- Escape-key dismissal where appropriate.
+
+Never rely on color alone to communicate verification status.
+
+Include visible text labels and accessible status descriptions.
+
+---
+
+# PART 15 — TESTING AND ACCEPTANCE CRITERIA
+
+Do not consider the application complete until the following workflows have been tested.
+
+### Test 1 — Sample Profile
+
+- Load Sample CS Graduate Profile.
+- Verify all five profile sections.
+- Verify deterministic fact IDs.
+- Approve sample facts.
+- Refresh the page.
+- Confirm persistence.
+
+### Test 2 — PDF Extraction
+
+- Upload a PDF resume.
+- Confirm browser-native base64 conversion.
+- Confirm Gemini receives inlineData.
+- Confirm structured extraction.
+- Confirm facts are initially pending approval.
+- Approve selected facts.
+
+### Test 3 — Fact Approval
+
+- Add a new fact.
+- Edit an existing fact.
+- Confirm edited facts require reapproval.
+- Delete a fact.
+- Confirm deleted IDs are not reused.
+- Confirm rejected facts are excluded.
+
+### Test 4 — Tailoring
+
+- Enter a realistic software engineering job description.
+- Add a focus directive.
+- Generate a resume.
+- Confirm all generated bullets contain valid source fact IDs.
+- Confirm unsupported profile requirements appear as missing.
+
+### Test 5 — Independent Audit
+
+- Confirm Pass 2 executes separately from Pass 1.
+- Confirm every bullet receives an audit result.
+- Confirm invalid source references are flagged.
+- Confirm unsupported claims cannot be silently exported.
+
+### Test 6 — Manual Editing
+
+- Edit a generated bullet.
+- Confirm its previous verification status is invalidated.
+- Re-run the audit.
+- Confirm the new result is displayed.
+
+### Test 7 — Export
+
+- Export PDF.
+- Confirm only the clean resume is printed.
+- Export Word.
+- Confirm the downloaded document opens as a readable Word-compatible document.
+- Copy plain text.
+- Confirm the clipboard contains only the resume content.
+
+### Test 8 — Version History
+
+- Generate two resumes.
+- Confirm both versions are saved.
+- Reopen the first version.
+- Confirm the exact original snapshot appears.
+- Duplicate a version.
+- Delete a version.
+- Refresh the browser.
+- Confirm persistence.
+
+### Test 9 — Error Recovery
+
+- Simulate an AI failure.
+- Confirm existing resume content is preserved.
+- Simulate malformed localStorage data.
+- Confirm the application recovers without crashing.
+
+### Test 10 — Responsive UI
+
+- Test desktop.
+- Test tablet.
+- Test mobile.
+- Confirm no broken layouts or inaccessible controls.
+
+---
+
+# PART 16 — FINAL PRODUCT QUALITY REQUIREMENTS
+
+The finished application must satisfy these principles:
+
+1. It must be a functional product, not a static prototype.
+2. All four navigation sections must work.
+3. Every primary action must have a real implementation.
+4. Every AI operation must use Gemini Structured Outputs.
+5. The two AI passes must be separate requests.
+6. No unapproved facts may enter the evidence pipeline.
+7. Every generated factual bullet must be traceable.
+8. The auditor must independently verify every generated claim.
+9. Unsupported claims must be clearly flagged.
+10. Scoring must use deterministic application-side logic.
+11. Version history must preserve immutable snapshots.
+12. PDF and Word exports must produce clean ATS-friendly documents.
+13. The interface must be responsive and accessible.
+14. The application must recover gracefully from errors.
+15. No placeholder buttons, fake AI responses, or decorative-only functionality.
+
+## IMPLEMENTATION PRIORITIES
+
+Build in this order:
+
+**Phase 1 — Foundation**
+- Project setup.
+- TypeScript data models.
+- Design system.
+- Application navigation.
+- Theme system.
+- Persistence layer.
+
+**Phase 2 — Master Profile**
+- Resume text intake.
+- PDF intake.
+- Gemini extraction.
+- Fact ID generation.
+- Human approval.
+- Profile editing.
+
+**Phase 3 — AI Engine**
+- Job description analysis.
+- Grounded resume generation.
+- Independent factual auditor.
+- Schema validation.
+- Deterministic scoring.
+
+**Phase 4 — Tailoring Studio**
+- Split-pane interface.
+- Gap analysis.
+- Resume generation.
+- Audit Mode.
+- Lineage Inspector.
+- Clean ATS Preview.
+- Manual editing and re-auditing.
+
+**Phase 5 — History and Export**
+- Version snapshots.
+- Version management.
+- PDF print export.
+- Word export.
+- Plain-text copying.
+- JSON backup and restore.
+
+**Phase 6 — Final Quality Assurance**
+- Error handling.
+- Security review.
+- Responsive testing.
+- Accessibility.
+- End-to-end workflow validation.
+- Visual refinement.
+
+Do not sacrifice working functionality for visual shortcuts.
+
+Do not stop after building the interface.
+
+Do not replace missing functionality with simulated data.
+
+If a feature cannot be implemented reliably within the current environment, explain the limitation and implement the safest working alternative.
+
+---
+
+# FINAL INSTRUCTION
+
+Build Gen1Resume as a cohesive, premium-quality application.
+
+Think like an engineer building a product that real job seekers will trust with their professional identity and career history.
+
+The experience should feel effortless, but the underlying system must be rigorous.
+
+The central promise of Gen1Resume is:
+
+**"Every tailored claim has evidence. Every piece of evidence has a source. Nothing gets invented."**
+
+Make this principle the foundation of every architectural decision, AI interaction, interface component, and export workflow.
+
+Start by inspecting the available project environment, then implement the application in a structured, maintainable way.
+
+Prioritize a fully working end-to-end experience over superficial feature completeness.
