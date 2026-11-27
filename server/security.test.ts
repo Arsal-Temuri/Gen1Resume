@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import type { Response } from 'express';
 import {
+  attachResponseAbortController,
   isValidPdfBase64MagicBytes,
   SlidingWindowRateLimiter,
 } from './security';
@@ -39,4 +42,28 @@ test('SlidingWindowRateLimiter enforces per-key quota and recovers after window 
   // Advance clock past sliding window
   clock += 61_000;
   assert.equal(limiter.check('10.0.0.1').allowed, true);
+});
+
+test('attachResponseAbortController aborts only on premature disconnect and not on normal completion', () => {
+  // Case 1: Normal response lifecycle (finish -> writableEnded=true -> close)
+  const normalRes = Object.assign(new EventEmitter(), {
+    writableEnded: false,
+    destroyed: false,
+  }) as unknown as Response;
+  const normalCtrl = attachResponseAbortController(normalRes);
+  assert.equal(normalCtrl.signal.aborted, false);
+  (normalRes as unknown as { writableEnded: boolean }).writableEnded = true;
+  normalRes.emit('finish');
+  normalRes.emit('close');
+  assert.equal(normalCtrl.signal.aborted, false);
+
+  // Case 2: Premature client disconnect (close before writableEnded)
+  const droppedRes = Object.assign(new EventEmitter(), {
+    writableEnded: false,
+    destroyed: false,
+  }) as unknown as Response;
+  const droppedCtrl = attachResponseAbortController(droppedRes);
+  assert.equal(droppedCtrl.signal.aborted, false);
+  droppedRes.emit('close');
+  assert.equal(droppedCtrl.signal.aborted, true);
 });

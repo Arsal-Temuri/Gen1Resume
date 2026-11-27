@@ -9,6 +9,7 @@ import {
 } from './server/gemini.ts';
 import {
   applySecurityHeaders,
+  attachResponseAbortController,
   createApiRateLimitMiddleware,
   isValidPdfBase64MagicBytes,
 } from './server/security.ts';
@@ -18,21 +19,6 @@ const __dirname = path.dirname(__filename);
 
 const MAX_PDF_BASE64_CHARS = 14_000_000; // ~10 MB binary PDF
 const MAX_TEXT_CHARS = 80_000;
-
-function attachRequestAbortController(req: Request, res: Response): AbortController {
-  const controller = new AbortController();
-  const handleClose = () => {
-    // Only abort if the client closed the connection before the response finished
-    if (!res.writableEnded) {
-      controller.abort();
-    }
-  };
-  req.on('close', handleClose);
-  res.on('finish', () => {
-    req.off('close', handleClose);
-  });
-  return controller;
-}
 
 async function startServer(): Promise<void> {
   const app = express();
@@ -54,7 +40,7 @@ async function startServer(): Promise<void> {
   app.use('/api/gemini', geminiRateLimiter);
 
   app.post('/api/gemini/extract', async (req: Request, res: Response) => {
-    const controller = attachRequestAbortController(req, res);
+    const controller = attachResponseAbortController(res);
     try {
       const body = req.body as Record<string, unknown> | undefined;
       if (!body || (body.mode !== 'text' && body.mode !== 'pdf')) {
@@ -103,7 +89,7 @@ async function startServer(): Promise<void> {
       );
       if (!res.writableEnded) res.json({ data });
     } catch (err) {
-      if (res.writableEnded || controller.signal.aborted) return;
+      if (res.writableEnded || res.destroyed) return;
       const status =
         typeof err === 'object' &&
         err !== null &&
@@ -113,12 +99,15 @@ async function startServer(): Promise<void> {
           : 500;
       const message =
         err instanceof Error ? err.message : 'Unexpected server error during resume extraction.';
+      if (status >= 500) {
+        console.error('[/api/gemini/extract] error:', err);
+      }
       res.status(status).json({ error: message });
     }
   });
 
   app.post('/api/gemini/tailor', async (req: Request, res: Response) => {
-    const controller = attachRequestAbortController(req, res);
+    const controller = attachResponseAbortController(res);
     try {
       const body = req.body as Record<string, unknown> | undefined;
       if (!body || typeof body.approvedProfile !== 'object' || body.approvedProfile === null) {
@@ -167,7 +156,7 @@ async function startServer(): Promise<void> {
       );
       if (!res.writableEnded) res.json({ data });
     } catch (err) {
-      if (res.writableEnded || controller.signal.aborted) return;
+      if (res.writableEnded || res.destroyed) return;
       const status =
         typeof err === 'object' &&
         err !== null &&
@@ -179,12 +168,15 @@ async function startServer(): Promise<void> {
         err instanceof Error
           ? err.message
           : 'Unexpected server error during Pass 1 resume tailoring.';
+      if (status >= 500) {
+        console.error('[/api/gemini/tailor] error:', err);
+      }
       res.status(status).json({ error: message });
     }
   });
 
   app.post('/api/gemini/audit', async (req: Request, res: Response) => {
-    const controller = attachRequestAbortController(req, res);
+    const controller = attachResponseAbortController(res);
     try {
       const body = req.body as Record<string, unknown> | undefined;
       if (
@@ -231,7 +223,7 @@ async function startServer(): Promise<void> {
       );
       if (!res.writableEnded) res.json({ data });
     } catch (err) {
-      if (res.writableEnded || controller.signal.aborted) return;
+      if (res.writableEnded || res.destroyed) return;
       const status =
         typeof err === 'object' &&
         err !== null &&
@@ -243,6 +235,9 @@ async function startServer(): Promise<void> {
         err instanceof Error
           ? err.message
           : 'Unexpected server error during Pass 2 factual auditing.';
+      if (status >= 500) {
+        console.error('[/api/gemini/audit] error:', err);
+      }
       res.status(status).json({ error: message });
     }
   });

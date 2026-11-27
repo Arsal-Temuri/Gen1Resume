@@ -124,3 +124,29 @@ export function applySecurityHeaders(_req: Request, res: Response, next: NextFun
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 }
+
+/**
+ * Attaches an AbortController to an Express response so upstream AI work is cancelled
+ * ONLY when the client disconnects before a response finishes.
+ *
+ * IMPORTANT: Listens to `res.on('close')` (NOT `req.on('close')`). In Node.js 16+,
+ * `req` emits `'close'` as soon as body middleware (`express.json()`) finishes reading
+ * the POST body, which would prematurely abort every POST request.
+ */
+export function attachResponseAbortController(res: Response): AbortController {
+  const controller = new AbortController();
+  if (res.destroyed && !res.writableEnded) {
+    controller.abort();
+    return controller;
+  }
+  const handleClose = () => {
+    if (!res.writableEnded) {
+      controller.abort();
+    }
+  };
+  res.on('close', handleClose);
+  res.on('finish', () => {
+    res.off('close', handleClose);
+  });
+  return controller;
+}
